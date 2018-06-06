@@ -169,3 +169,19 @@ g_legend <- function(a.gplot){
   return(legend)
   }
 
+getNMostCommonX <- function(df,n,X="Otu",f=filter) {
+  return(unique(df %>% f() %>% group_by_(X) %>% summarize(numSamples=n()) %>%
+                  top_n(n,numSamples) %>% pull(eval(X))))
+}
+
+getNMostAbundantX <- function(df,n,X="Otu",f=filter) {
+  return(unique(df %>% f() %>% group_by(SampleID) %>% top_n(n,proportion) %>% pull(eval(X))))
+}
+
+getMostAbundantTax <- function(df,n,f=filter) {
+  return(unique(df %>% f() %>% group_by(SampleID) %>% top_n(n,proportion) %>% pull(Tax)))
+}
+
+alignUnifracData <- function(s, u) {
+  return(dist_subset(u,match(s$SampleID,attr(u,"Labels"))))
+}
