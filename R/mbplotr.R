@@ -96,6 +96,32 @@ plotRACset <- function(racDataDf, graphLabels, graphLabelDict, plotLegend=TRUE) 
 }
 
 
+printUnifracLegends <- function(colors=NULL, color_title="", shapes=NULL, shape_title="") {
+  library(dnar)
+  if(!is.null(colors)) {
+    xpos=ifelse(is.null(shapes),mean(par('usr')[c(1,2)]),mean(par('usr')[c(1,1,2)]))
+    legend(
+      xpos,
+      convertLineToUser(4,1),
+      names(colors), pch=15,
+      col=colors, xjust=0.5,xpd=NA, y.intersp = 0.75, title=color_title
+    )
+  }
+  if(!is.null(shapes)) {
+    xpos=ifelse(is.null(colors),mean(par('usr')[c(1,2)]),mean(par('usr')[c(1,2,2,2,2)]))
+    legend(
+      xpos,
+      convertLineToUser(4,1),
+      names(shapes), pch=as.numeric(shapes),
+      col="black", xjust=0.5,xpd=NA, y.intersp = 0.75, title=shape_title
+    )
+  }
+}
+
+setUnifracPlotMargins <- function() {
+  par(mar=c(12,4,3,1)) # need to leave margin room
+}
+
 
 shannonDiv <- function(data){
   H <- numeric(ncol(data))
