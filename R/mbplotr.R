@@ -211,3 +211,54 @@ getMostAbundantTax <- function(df,n,f=filter) {
 alignUnifracData <- function(s, u) {
   return(dist_subset(u,match(s$SampleID,attr(u,"Labels"))))
 }
+
+prepareTreeData <- function(df, sampleIdVar, expVar, taxVar, propVar) {
+  library(dplyr)
+  library(lazyeval)
+  treeData <- df %>%
+    group_by_(eval(sampleIdVar),eval(expVar), eval(taxVar)) %>%
+    summarize_(proportion=interp(~sum(var), var = as.name(propVar))) %>%
+    ungroup() %>%
+    unite_('idcol',c(sampleIdVar, expVar), sep=" ") %>%
+    tidyr::complete_(cols=c(quo(idcol), eval(taxVar)), fill=list(proportion=0)) %>%
+    separate_('idcol',c(sampleIdVar, expVar), sep=" ") %>%
+    spread(eval(taxVar), proportion) %>%
+    mutate_if(names(.)==expVar,as.factor)
+  return(treeData)
+  }
+
+makeDecisionTree <- function(df, sampleIdVar, expVar) {
+  library(tree)
+  tree <- tree(eval(formula(paste0(expVar, " ~ . - ", sampleIdVar))), 
+    data = data.frame(df), model = T)
+  return(tree)
+  }
+
+makePredictionOnTree <- function(df, tree, sampleIdVar, expVar) {
+  sp <- df %>%
+    select_(sampleIdVar, expVar) %>%
+    cbind(predict(tree)) %>%
+    gather(Prediction, Probability, -starts_with(sampleIdVar), -starts_with(expVar))
+  return(sp)
+  }
+
+predictionAnalysis <- function(df, sampleIdVar, expVar, taxVar, propVar) {
+  data <- prepareTreeData(df, sampleIdVar, expVar, taxVar, propVar)
+  tree <- makeDecisionTree(data, sampleIdVar, expVar)
+  sp <- makePredictionOnTree(data, tree, sampleIdVar, expVar)
+  return(list(data, tree, sp))
+  }
+
+plotPredictionAnalysis <- function(df) {
+  sampleIdVar <- colnames(df)[1]
+  expVar <- colnames(df)[2]
+  df %>%
+    mutate(Prediction = paste("Prediction =", Prediction)) %>%
+    mutate(SubjectID = paste(!!names(.[2])," = ", UQ(sym(expVar)))) %>%
+    ggplot() +
+    geom_point(aes_string(x=sampleIdVar, y="Probability", color=expVar)) +
+    facet_grid(as.formula(paste(expVar, "~ Prediction")), space = "free_y", scales="free_y") +
+    coord_flip() +
+    theme_bw()
+  }
+

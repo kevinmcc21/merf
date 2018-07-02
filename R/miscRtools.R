@@ -130,7 +130,27 @@ scale_fill_brewer_cycle <- function(limits, ...) {
 }
 
 
+# Convert list of character vectors to single character matrix, back-filling NA for sequences of uneven length
+charListToMatrix <- function(L) {
+  maxLen <- max(sapply(L, function(X) {length(X)}))
+  L2 <- lapply(L, function(X) {
+    v <- vector(mode="character",length=maxLen)
+    v[1:maxLen] <- NA
+    v[1:length(X)] <- X
+    return(v)
+  })
+  m <- do.call(rbind, L2)
+  return(m)
+}
 
+charListToMatrix2 <- function(L) {
+  minLen <- min(sapply(L, function(X) {length(X)}))
+  L2 <- lapply(L, function(X) {
+    return(X[1:minLen])
+  })
+  m <- do.call(rbind, L2)
+  return(m)
+}
 
 
 
