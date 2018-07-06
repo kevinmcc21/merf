@@ -52,8 +52,11 @@ readSampleMetadataFile <- function (filepath) {
   sample_data <- read.table(sample_file, col.names = cols, sep = "\t", quote = "", row.names = NULL,
                             na.strings = c("NA", "na", "Null", "null", "n/a", "N/A"), stringsAsFactors = FALSE)
   close(sample_file)
-  sample_data$SampleID <- as.character(sample_data$SampleID)
-  sample_data
+  if("SampleID" %in% colnames(sample_data)) {
+    return(sample_data)
+  } else {
+    stop("No column named 'SampleID' in metadata file.")
+  }
 }
 
 
