@@ -1,5 +1,7 @@
 # Various functions to assist in plotting microbiome data in R
 
+# Data reformatting----
+
 alignQiimeData <- function(E) {
   o <- E$o
   s <- E$s
@@ -26,6 +28,27 @@ alignQiimeData <- function(E) {
   E$s <- s
   E$o <- o
 }
+
+reorderDist <- function(dist, vector) {
+  return(as.dist(as.matrix(dist)[match(vector,attr(dist,"Labels")),
+                                 match(vector,attr(dist,"Labels"))]))
+}
+
+countsToProp <- function(counts) {
+  return(apply(counts, 2, function(x)   ifelse (x, x / sum(x),0)))
+}
+
+fraction_nonzero <- function (x) sum(x > 0) / length(x)
+
+tidy_lmer <- function(X) {
+  sumry <- summary(X)
+  coef <- sumry$coefficients
+  df <- data.frame(term=rownames(coef),coef,group="fixed",row.names=NULL) %>%
+    dplyr::rename(p.value=Pr...t..)
+  return(df)
+}
+
+# Rank abundance curve plots----
 
 plotRAC <- function(racData, graphLabel="", plotsMin=NULL, plotsMax=NULL, plotLegend=TRUE) {
   numLines <- length(racData)
@@ -95,8 +118,24 @@ plotRACset <- function(racDataDf, graphLabels, graphLabelDict, plotLegend=TRUE) 
   }
 }
 
+# PCoA functions----
 
-printUnifracLegends <- function(colors=NULL, color_title="", shapes=NULL, shape_title="") {
+makeLegendColors <- function(vector) {
+  legendColors <- rainbow(length(unique(vector)))
+  names(legendColors) <- sort(unique(vector))
+  return(legendColors)
+}
+
+makeLegendShapes <- function(vector) {
+  if(length(unique(vector)) > 8) { stop("Can't make order legend for more than 8 unique values.")}
+  vectorOrder <- as.matrix(unique(cbind(as.character(vector),as.numeric(factor(vector)))))
+  orderShapeList <- c(15,17,18,19,21,22,23,24,25)
+  newVectorOrder <- as.numeric(orderShapeList[as.numeric(vectorOrder[,2])])
+  names(newVectorOrder) <- vectorOrder[,1]
+  return(newVectorOrder)
+}
+
+printPcoaLegends <- function(colors=NULL, color_title="", shapes=NULL, shape_title="") {
   library(dnar)
   if(!is.null(colors)) {
     xpos=ifelse(is.null(shapes),mean(par('usr')[c(1,2)]),mean(par('usr')[c(1,1,2)]))
@@ -118,10 +157,76 @@ printUnifracLegends <- function(colors=NULL, color_title="", shapes=NULL, shape_
   }
 }
 
-setUnifracPlotMargins <- function() {
+setPcoaPlotMargins <- function() {
   par(mar=c(12,4,3,1)) # need to leave margin room
 }
 
+plotPcoaGroup <- function(E, pcoa, joinVar, fillVar, shapeVar=21, title=NULL, legend=FALSE) {
+  if(shapeVar==21) {
+    df <- data.frame(Axis.1=pcoa$vectors[,1],Axis.2=pcoa$vectors[,2],
+                     ID=rownames(pcoa$vectors)) %>%
+      left_join((E$s %>% select(one_of(joinVar), one_of(fillVar))),by=c("ID"=joinVar))
+    pcoaPlot <-
+      ggplot(df, aes_string(x="Axis.1",y="Axis.2",fill=fillVar)) +
+      geom_point(color="black", size=2.5, shape=21)
+  } else {
+    df <- data.frame(Axis.1=pcoa$vectors[,1],Axis.2=pcoa$vectors[,2],
+                     ID=rownames(pcoa$vectors)) %>%
+      left_join((E$s %>% select(one_of(joinVar), one_of(fillVar), one_of(shapeVar))),by=c("ID"=joinVar))
+    df <- df %>%
+      mutate(shapeCol=c("21","22","23","24","25")[as.integer(factor(df %>% select_(shapeVar) %>% pull(1)))])
+    pcoaPlot <-
+      ggplot(df, aes_string(x="Axis.1",y="Axis.2",fill=fillVar)) +
+      geom_point(color="black", size=2.5, shape=as.integer(df %>% pull(shapeCol)))
+  }
+  pcoaPlot <- pcoaPlot +
+    coord_equal() +
+    labs(
+      x = sprintf("Axis 1 (%1.1f%%)", pcoa$values[1, 2]*100),
+      y = sprintf("Axis 2 (%1.1f%%)", pcoa$values[2, 2]*100)
+    ) +
+    themePcoa +
+    ggtitle(title)
+  if(legend) {
+    pcoaPlot <- pcoaPlot+theme(legend.position="right")
+  }
+  return(pcoaPlot)
+}
+
+plotUuPcoaGroup <- function(E, joinVar, fillVar, shapeVar=21, title=NULL) {
+  plotPcoaGroup(E,E$uu_pcoa,joinVar, fillVar, shapeVar, title)
+}
+
+plotWuPcoaGroup <- function(E, joinVar, fillVar, shapeVar=21, title=NULL) {
+  plotPcoaGroup(E,E$wu_pcoa, joinVar, fillVar, shapeVar, title)
+}
+
+plotJaccardPcoaGroup <- function(E, joinVar, fillVar, shapeVar=21, title=NULL) {
+  plotPcoaGroup(E,E$jaccard_pcoa, joinVar, fillVar, shapeVar, title)
+}
+
+trioPcoaPlot <- function(E, joinVar="PatientID", fillVar, sampleText="all samples", shapeVar=21) {
+  uuplot <- plotUuPcoaGroup(E, joinVar, fillVar, shapeVar, "Unweighted Unifrac")
+  wuplot <- plotWuPcoaGroup(E, joinVar, fillVar, shapeVar, "Weighted Unifrac")
+  jplot <- plotJaccardPcoaGroup(E, joinVar, fillVar, shapeVar, "Jaccard")
+  
+  cat("\n\n\\pagebreak\n")
+  cat(paste0("\n\n# PCOA on ",sampleText,", colored by ",fillVar,"\n"))
+  grid.arrange(uuplot,wuplot,jplot, g_legend(plotPcoaGroup(E,E$jaccard_pcoa, joinVar, fillVar, legend=TRUE)), ncol=2)
+}
+
+g_legend <- function(a.gplot){ 
+  library(ggplot2)
+  library(grid)
+  library(gridExtra)
+  tmp <- ggplot_gtable(ggplot_build(a.gplot)) 
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box") 
+  legend <- tmp$grobs[[leg]] 
+  return(legend)
+}
+
+
+# Diversity functions----
 
 shannonDiv <- function(data){
   H <- numeric(ncol(data))
@@ -151,49 +256,62 @@ evenness <- function(data){
   return(cbind(colnames(data),H))
 }
 
-makeLegendColors <- function(vector) {
-  legendColors <- rainbow(length(unique(vector)))
-  names(legendColors) <- sort(unique(vector))
-  return(legendColors)
+# Prediction trees----
+
+prepareTreeData <- function(df, sampleIdVar, expVar, taxVar, propVar) {
+  library(dplyr)
+  library(lazyeval)
+  treeData <- df %>%
+    group_by_(eval(sampleIdVar),eval(expVar), eval(taxVar)) %>%
+    summarize_(proportion=interp(~sum(var), var = as.name(propVar))) %>%
+    ungroup() %>%
+    unite_('idcol',c(sampleIdVar, expVar), sep=" ") %>%
+    tidyr::complete_(cols=c(quo(idcol), eval(taxVar)), fill=list(proportion=0)) %>%
+    separate_('idcol',c(sampleIdVar, expVar), sep=" ") %>%
+    spread(eval(taxVar), proportion) %>%
+    mutate_if(names(.)==expVar,as.factor)
+  return(treeData)
 }
 
-makeLegendShapes <- function(vector) {
-  if(length(unique(vector)) > 8) { stop("Can't make order legend for more than 8 unique values.")}
-  vectorOrder <- as.matrix(unique(cbind(as.character(vector),as.numeric(factor(vector)))))
-  orderShapeList <- c(15,17,18,19,21,22,23,24,25)
-  newVectorOrder <- as.numeric(orderShapeList[as.numeric(vectorOrder[,2])])
-  names(newVectorOrder) <- vectorOrder[,1]
-  return(newVectorOrder)
+makeDecisionTree <- function(df, sampleIdVar, expVar) {
+  library(tree)
+  tree <- tree(eval(formula(paste0(expVar, " ~ . - ", sampleIdVar))), 
+               data = data.frame(df), model = T)
+  return(tree)
 }
 
-reorderDist <- function(dist, vector) {
-  return(as.dist(as.matrix(dist)[match(vector,attr(dist,"Labels")),
-                                 match(vector,attr(dist,"Labels"))]))
+makePredictionOnTree <- function(df, tree, sampleIdVar, expVar) {
+  sp <- df %>%
+    select_(sampleIdVar, expVar) %>%
+    cbind(predict(tree)) %>%
+    gather(Prediction, Probability, -starts_with(sampleIdVar), -starts_with(expVar))
+  return(sp)
 }
 
-countsToProp <- function(counts) {
-  return(apply(counts, 2, function(x)   ifelse (x, x / sum(x),0)))
+predictionAnalysis <- function(df, sampleIdVar, expVar, taxVar, propVar) {
+  data <- prepareTreeData(df, sampleIdVar, expVar, taxVar, propVar)
+  tree <- makeDecisionTree(data, sampleIdVar, expVar)
+  sp <- makePredictionOnTree(data, tree, sampleIdVar, expVar)
+  return(list(data, tree, sp))
 }
 
-fraction_nonzero <- function (x) sum(x > 0) / length(x)
-
-tidy_lmer <- function(X) {
-  sumry <- summary(X)
-  coef <- sumry$coefficients
-  df <- data.frame(term=rownames(coef),coef,group="fixed",row.names=NULL) %>%
-    dplyr::rename(p.value=Pr...t..)
-  return(df)
+plotPredictionAnalysis <- function(df) {
+  sampleIdVar <- colnames(df)[1]
+  expVar <- colnames(df)[2]
+  df %>%
+    mutate(Prediction = paste("Prediction =", Prediction)) %>%
+    mutate(SubjectID = paste(!!names(.[2])," = ", UQ(sym(expVar)))) %>%
+    ggplot() +
+    geom_point(aes_string(x=sampleIdVar, y="Probability", color=expVar)) +
+    facet_grid(as.formula(paste(expVar, "~ Prediction")), space = "free_y", scales="free_y") +
+    coord_flip() +
+    theme_bw()
 }
 
-g_legend <- function(a.gplot){ 
-  library(ggplot2)
-  library(grid)
-  library(gridExtra)
-  tmp <- ggplot_gtable(ggplot_build(a.gplot)) 
-  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box") 
-  legend <- tmp$grobs[[leg]] 
-  return(legend)
-  }
+
+
+# Other functions----
+
 
 getNMostCommonX <- function(df,n,X="Otu",f=filter) {
   return(unique(df %>% f() %>% group_by_(X) %>% summarize(numSamples=n()) %>%
@@ -211,54 +329,4 @@ getMostAbundantTax <- function(df,n,f=filter) {
 alignUnifracData <- function(s, u) {
   return(dist_subset(u,match(s$SampleID,attr(u,"Labels"))))
 }
-
-prepareTreeData <- function(df, sampleIdVar, expVar, taxVar, propVar) {
-  library(dplyr)
-  library(lazyeval)
-  treeData <- df %>%
-    group_by_(eval(sampleIdVar),eval(expVar), eval(taxVar)) %>%
-    summarize_(proportion=interp(~sum(var), var = as.name(propVar))) %>%
-    ungroup() %>%
-    unite_('idcol',c(sampleIdVar, expVar), sep=" ") %>%
-    tidyr::complete_(cols=c(quo(idcol), eval(taxVar)), fill=list(proportion=0)) %>%
-    separate_('idcol',c(sampleIdVar, expVar), sep=" ") %>%
-    spread(eval(taxVar), proportion) %>%
-    mutate_if(names(.)==expVar,as.factor)
-  return(treeData)
-  }
-
-makeDecisionTree <- function(df, sampleIdVar, expVar) {
-  library(tree)
-  tree <- tree(eval(formula(paste0(expVar, " ~ . - ", sampleIdVar))), 
-    data = data.frame(df), model = T)
-  return(tree)
-  }
-
-makePredictionOnTree <- function(df, tree, sampleIdVar, expVar) {
-  sp <- df %>%
-    select_(sampleIdVar, expVar) %>%
-    cbind(predict(tree)) %>%
-    gather(Prediction, Probability, -starts_with(sampleIdVar), -starts_with(expVar))
-  return(sp)
-  }
-
-predictionAnalysis <- function(df, sampleIdVar, expVar, taxVar, propVar) {
-  data <- prepareTreeData(df, sampleIdVar, expVar, taxVar, propVar)
-  tree <- makeDecisionTree(data, sampleIdVar, expVar)
-  sp <- makePredictionOnTree(data, tree, sampleIdVar, expVar)
-  return(list(data, tree, sp))
-  }
-
-plotPredictionAnalysis <- function(df) {
-  sampleIdVar <- colnames(df)[1]
-  expVar <- colnames(df)[2]
-  df %>%
-    mutate(Prediction = paste("Prediction =", Prediction)) %>%
-    mutate(SubjectID = paste(!!names(.[2])," = ", UQ(sym(expVar)))) %>%
-    ggplot() +
-    geom_point(aes_string(x=sampleIdVar, y="Probability", color=expVar)) +
-    facet_grid(as.formula(paste(expVar, "~ Prediction")), space = "free_y", scales="free_y") +
-    coord_flip() +
-    theme_bw()
-  }
 
