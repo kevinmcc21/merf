@@ -176,8 +176,10 @@ plotPcoaGroup <- function(E, pcoa, joinVar, fillVar, shapeVar=21, title=NULL, le
     df <- df %>%
       mutate(shapeCol=c("21","22","23","24","25")[as.integer(factor(df %>% select_(shapeVar) %>% pull(1)))])
     pcoaPlot <-
-      ggplot(df, aes_string(x="Axis.1",y="Axis.2",fill=fillVar)) +
-      geom_point(color="black", size=2.5, shape=as.integer(df %>% pull(shapeCol)))
+      ggplot(df, aes_string(x="Axis.1",y="Axis.2",fill=fillVar,shape="shapeCol")) +
+      geom_point(color="black", size=2.5) +
+      scale_shape_manual(values=c(21,22,23,24,25)) +
+      guides(fill = guide_legend(override.aes = list(shape = 21)))
   }
   pcoaPlot <- pcoaPlot +
     coord_equal() +
@@ -206,13 +208,14 @@ plotJaccardPcoaGroup <- function(E, joinVar, fillVar, shapeVar=21, title=NULL) {
 }
 
 trioPcoaPlot <- function(E, joinVar="PatientID", fillVar, sampleText="all samples", shapeVar=21) {
+  return(plotPcoaGroup(E,E$jaccard_pcoa, joinVar, fillVar, shapeVar=shapeVar, legend=TRUE))
   uuplot <- plotUuPcoaGroup(E, joinVar, fillVar, shapeVar, "Unweighted Unifrac")
   wuplot <- plotWuPcoaGroup(E, joinVar, fillVar, shapeVar, "Weighted Unifrac")
   jplot <- plotJaccardPcoaGroup(E, joinVar, fillVar, shapeVar, "Jaccard")
-  
+
   cat("\n\n\\pagebreak\n")
   cat(paste0("\n\n# PCOA on ",sampleText,", colored by ",fillVar,"\n"))
-  grid.arrange(uuplot,wuplot,jplot, g_legend(plotPcoaGroup(E,E$jaccard_pcoa, joinVar, fillVar, legend=TRUE)), ncol=2)
+  grid.arrange(uuplot,wuplot,jplot, g_legend(plotPcoaGroup(E,E$jaccard_pcoa, joinVar, fillVar, shapeVar=shapeVar, legend=TRUE)), ncol=2)
 }
 
 g_legend <- function(a.gplot){ 
