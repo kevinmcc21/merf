@@ -173,10 +173,8 @@ plotPcoaGroup <- function(E, pcoa, joinVar, fillVar, shapeVar=21, title=NULL, le
     df <- data.frame(Axis.1=pcoa$vectors[,1],Axis.2=pcoa$vectors[,2],
                      ID=rownames(pcoa$vectors)) %>%
       left_join((E$s %>% select(one_of(joinVar), one_of(fillVar), one_of(shapeVar))),by=c("ID"=joinVar))
-    df <- df %>%
-      mutate(shapeCol=c("21","22","23","24","25")[as.integer(factor(df %>% select_(shapeVar) %>% pull(1)))])
     pcoaPlot <-
-      ggplot(df, aes_string(x="Axis.1",y="Axis.2",fill=fillVar,shape="shapeCol")) +
+      ggplot(df, aes_string(x="Axis.1",y="Axis.2",fill=fillVar,shape=shapeVar)) +
       geom_point(color="black", size=2.5) +
       scale_shape_manual(values=c(21,22,23,24,25)) +
       guides(fill = guide_legend(override.aes = list(shape = 21)))
@@ -196,22 +194,22 @@ plotPcoaGroup <- function(E, pcoa, joinVar, fillVar, shapeVar=21, title=NULL, le
 }
 
 plotUuPcoaGroup <- function(E, joinVar, fillVar, shapeVar=21, title=NULL) {
-  plotPcoaGroup(E,E$uu_pcoa,joinVar, fillVar, shapeVar, title)
+  merf::plotPcoaGroup(E,E$uu_pcoa,joinVar, fillVar, shapeVar, title)
 }
 
 plotWuPcoaGroup <- function(E, joinVar, fillVar, shapeVar=21, title=NULL) {
-  plotPcoaGroup(E,E$wu_pcoa, joinVar, fillVar, shapeVar, title)
+  merf::plotPcoaGroup(E,E$wu_pcoa, joinVar, fillVar, shapeVar, title)
 }
 
 plotJaccardPcoaGroup <- function(E, joinVar, fillVar, shapeVar=21, title=NULL) {
-  plotPcoaGroup(E,E$jaccard_pcoa, joinVar, fillVar, shapeVar, title)
+  merf::plotPcoaGroup(E,E$jaccard_pcoa, joinVar, fillVar, shapeVar, title)
 }
 
 trioPcoaPlot <- function(E, joinVar="PatientID", fillVar, sampleText="all samples", shapeVar=21) {
-  return(plotPcoaGroup(E,E$jaccard_pcoa, joinVar, fillVar, shapeVar=shapeVar, legend=TRUE))
-  uuplot <- plotUuPcoaGroup(E, joinVar, fillVar, shapeVar, "Unweighted Unifrac")
-  wuplot <- plotWuPcoaGroup(E, joinVar, fillVar, shapeVar, "Weighted Unifrac")
-  jplot <- plotJaccardPcoaGroup(E, joinVar, fillVar, shapeVar, "Jaccard")
+  browser()
+  uuplot <- merf::plotUuPcoaGroup(E, joinVar, fillVar, shapeVar, "Unweighted Unifrac")
+  wuplot <- merf::plotWuPcoaGroup(E, joinVar, fillVar, shapeVar, "Weighted Unifrac")
+  jplot <- merf::plotJaccardPcoaGroup(E, joinVar, fillVar, shapeVar, "Jaccard")
 
   cat("\n\n\\pagebreak\n")
   cat(paste0("\n\n# PCOA on ",sampleText,", colored by ",fillVar,"\n"))
