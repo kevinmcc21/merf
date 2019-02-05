@@ -206,7 +206,6 @@ plotJaccardPcoaGroup <- function(E, joinVar, fillVar, shapeVar=21, title=NULL) {
 }
 
 trioPcoaPlot <- function(E, joinVar="PatientID", fillVar, sampleText="all samples", shapeVar=21) {
-  browser()
   uuplot <- merf::plotUuPcoaGroup(E, joinVar, fillVar, shapeVar, "Unweighted Unifrac")
   wuplot <- merf::plotWuPcoaGroup(E, joinVar, fillVar, shapeVar, "Weighted Unifrac")
   jplot <- merf::plotJaccardPcoaGroup(E, joinVar, fillVar, shapeVar, "Jaccard")
@@ -329,5 +328,34 @@ getMostAbundantTax <- function(df,n,f=filter) {
 
 alignUnifracData <- function(s, u) {
   return(dist_subset(u,match(s$SampleID,attr(u,"Labels"))))
+}
+
+
+rearrangeCycle <- function(vector) {
+  n <- length(vector)
+  cycleLength <- floor(sqrt(n))
+  newVector <- vector(length=n,mode=class(vector))
+  assignedItems <- vector(length=n,mode="numeric")
+  nextSlot <- 1
+  for(i in seq(1,n)) {
+    newVector[nextSlot] <- vector[i]
+    assignedItems[nextSlot] <- 1
+    nextSlot <- ifelse(nextSlot + cycleLength > n, nextSlot + cycleLength - n, nextSlot + cycleLength)
+    while(sum(assignedItems) < n & assignedItems[nextSlot]==1) {
+      nextSlot <- ifelse(nextSlot == n, nextSlot + 1, min(which(assignedItems==0)))
+    }
+  }
+  return(newVector)
+}
+
+scale_fill_brewer_cycle <- function(limits, ...) {
+  cycledLimits <- rearrangeCycle(limits)
+  return(scale_fill_brewer(..., limits=cycledLimits, breaks=limits))
+}
+
+
+scale_color_brewer_cycle <- function(limits, ...) {
+  cycledLimits <- rearrangeCycle(limits)
+  return(scale_color_brewer(..., limits=cycledLimits, breaks=limits))
 }
 

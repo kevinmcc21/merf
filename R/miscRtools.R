@@ -152,7 +152,14 @@ charListToMatrix2 <- function(L) {
   return(m)
 }
 
+expand.grid.df <- function(...) Reduce(function(...) merge(..., by=NULL), list(...))
 
-
+vectorToDf <- function(X, colName1, colName2) {
+  df <- data.frame(col1=names(X),
+                   col2=X)
+  colnames(df) <- c(colName1,colName2)
+  rownames(df) <- NULL
+  return(df)
+}
 
 
