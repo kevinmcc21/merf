@@ -162,4 +162,29 @@ vectorToDf <- function(X, colName1, colName2) {
   return(df)
 }
 
+# Tries to load a package silently and installs it if it needs to
+get_package <- function(pkg, load = TRUE, silent = FALSE, repos = "http://cran.us.r-project.org") {
+  if(!suppressMessages(suppressWarnings(require(pkg, character.only = TRUE, quietly = TRUE)))) {
+    try(install.packages(pkg, repos = repos), silent = TRUE)
+  }
+  if(load) suppressPackageStartupMessages(library(pkg, character.only = TRUE, quietly = TRUE))
+  if(load & !silent) message("Loaded ", pkg)
+}
 
+# Simultaneously converts relative path to absolute path and checks if file exists
+try_filepath <- function(file, desc="unspecified") {
+  tryCatch(newfile <- tools::file_path_as_absolute(file),
+           error = function(e) stop(paste0("Cannot find ", desc," file: ", file)),
+           finally = 1)
+  print(paste0("Using ", desc, " file: ", newfile))
+  return(newfile)
+}
+
+# Simultaneously converts relative path to absolute path and checks if containing directory exists
+try_dirpath <- function(file, desc="output") {
+  tryCatch(newfile <- paste0(tools::file_path_as_absolute(dirname(file)),"/", basename(file)),
+           error = function(e) stop(paste0("Cannot find ", desc, "directory: ", dirname(file))),
+           finally = 1)
+  print(paste0("Using ", desc, " file: ", newfile))
+  return(newfile)
+}
