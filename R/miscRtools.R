@@ -188,3 +188,13 @@ try_dirpath <- function(file, desc="output") {
   print(paste0("Using ", desc, " file: ", newfile))
   return(newfile)
 }
+
+# Render a PDF file using an input RMD script and a target file
+render_output <- function(script, pdf) {
+  rmarkdown::render(
+    input = script,
+    output_file = pdf,
+    quiet = TRUE,
+    clean = TRUE
+  )
+}
