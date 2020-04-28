@@ -189,12 +189,75 @@ try_dirpath <- function(file, desc="output") {
   return(newfile)
 }
 
+try_element <- function(list, name) {
+  if(name %in% names(list)) {
+    return(list[[name]])
+  } else {
+    return(NULL)
+  }
+}
+
 # Render a PDF file using an input RMD script and a target file
-render_output <- function(script, pdf) {
+render_output <- function(script, pdf, params=NULL) {
   rmarkdown::render(
     input = script,
     output_file = pdf,
     quiet = TRUE,
-    clean = TRUE
+    clean = TRUE,
+    params=params
   )
 }
+
+# Reduce a string to a shorter, regex-style string
+reduce_string <- function(string) {
+  print(paste0("String:",string))
+  N <- nchar(string)
+  if(N == 0) { return(NULL) }
+  if(N <= 3) { return(string) }
+  
+  get_b_candidates <- function(N) {
+    b_candidates <- sapply(seq(1, floor(sqrt(N))), function(X) {
+      if(N %% X == 0) { return(c(X, N / X)) } else { return(1) }
+    })
+    return(sort(unique(unlist(as.vector(b_candidates)))))
+  }
+
+  result <- sapply(seq(1, N), function(i) {
+    LHS <- substr(string, 1, i)
+    N_LHS <- nchar(LHS)
+    if(N_LHS <= 3) {
+      resultLHS <- LHS
+    } else {
+      resultLHS <- sapply(get_b_candidates(N_LHS), function(b) {
+        snippet <- substr(LHS, 1, N_LHS / b)
+        if(paste0(rep(snippet, b), collapse = '') == LHS) {
+          return(paste0(snippet, "^", b))
+        }
+      })
+      resultLHS <- unlist(resultLHS)
+      resultLHS <- resultLHS[which.min(nchar(resultLHS))]
+    }
+    
+    if(i < N - 3) {
+      RHS <- substr(string, i + 1, N)
+      resultRHS <- reduce_string(RHS)
+      #print(paste0("Returning pair (LHS:", resultLHS, ", RHS:", resultRHS, ")"))
+      return(paste0(resultLHS, resultRHS))
+    } else if(i < N) {
+      resultRHS <- substr(string, i + 1, N)
+      #print(paste0("Returning pair (LHS:", resultLHS, ", RHS:", resultRHS, ")"))
+      return(paste0(resultLHS, resultRHS))
+    } else {
+      #print(paste0("Returning ", resultLHS))
+      return(resultLHS)
+    }
+  })
+  
+  result <- unlist(result)
+  result <- result[which.min(nchar(result))]
+  
+  print(paste0("Returning result ", result, " for string ", string))
+  
+  return(result)
+}
+
